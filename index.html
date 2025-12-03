@@ -159,11 +159,24 @@
                     <span id="toast-text">알림</span>
                 </div>
 
+                <!-- Reset Button (Left Bottom) -->
                 <div class="absolute bottom-5 left-5 z-10">
                      <button onclick="resetLab()" class="bg-white/90 hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center gap-2 backdrop-blur">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         초기화
                      </button>
+                </div>
+                
+                <!-- Rotation Controller (Right Bottom) -->
+                <div id="rotation-controls" class="hidden absolute bottom-5 right-5 z-10 flex flex-col items-center gap-2">
+                    <div id="rotation-pad" class="w-20 h-20 bg-white/90 backdrop-blur rounded-full border border-slate-200 shadow-lg flex items-center justify-center relative touch-none cursor-move">
+                        <div class="absolute text-[8px] font-bold text-slate-300 pointer-events-none top-1.5">▲</div>
+                        <div class="absolute text-[8px] font-bold text-slate-300 pointer-events-none bottom-1.5">▼</div>
+                        <div class="absolute text-[8px] font-bold text-slate-300 pointer-events-none left-1.5">◀</div>
+                        <div class="absolute text-[8px] font-bold text-slate-300 pointer-events-none right-1.5">▶</div>
+                        <div id="stick-thumb" class="w-8 h-8 bg-indigo-500/80 rounded-full shadow-md transform transition-transform duration-75 border-2 border-white"></div>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-500 bg-white/80 px-2 py-0.5 rounded-full shadow-sm">회전</span>
                 </div>
 
                 <div class="absolute top-5 right-5 z-10 w-64">
@@ -276,19 +289,15 @@
 
     /* ================= DATA CONFIG ================= */
     const ATOMS = {
-        // 3D Colors: Adjusted for gradients (Ball & Stick style)
-        // c3d: Main sphere color, t3d: Text color in 3D
         'H':  { valence: 1, bondOrder: 1, color: '#f8fafc', border: '#94a3b8', r: 24, label: 'H', c3d: '#F0F0F0', t3d: '#333' },
         'F':  { valence: 7, bondOrder: 1, color: '#dcfce7', border: '#4ade80', r: 30, label: 'F', c3d: '#90EE90', t3d: '#004d00' }, 
         'Cl': { valence: 7, bondOrder: 1, color: '#d1fae5', border: '#10b981', r: 32, label: 'Cl', c3d: '#00FF00', t3d: '#003300' },
         'O':  { valence: 6, bondOrder: 2, color: '#fee2e2', border: '#ef4444', r: 30, label: 'O', c3d: '#FF0000', t3d: '#fff' },
         'S':  { valence: 6, bondOrder: 2, color: '#fef3c7', border: '#eab308', r: 34, label: 'S', c3d: '#FFFF00', t3d: '#666' }, 
         'N':  { valence: 5, bondOrder: 3, color: '#dbeafe', border: '#2563eb', r: 30, label: 'N', c3d: '#3050F8', t3d: '#fff' },
-        
-        // Centers
         'Be': { valence: 2, r: 32, color: '#e2e8f0', border: '#cbd5e1', label: 'Be', c3d: '#909090', t3d: '#fff' },
         'B':  { valence: 3, r: 32, color: '#fca5a5', border: '#f87171', label: 'B', c3d: '#FFAA77', t3d: '#000' },
-        'C':  { valence: 4, r: 38, color: '#a5b4fc', border: '#818cf8', label: 'C', c3d: '#333333', t3d: '#fff' }, // Dark Grey for Carbon
+        'C':  { valence: 4, r: 38, color: '#a5b4fc', border: '#818cf8', label: 'C', c3d: '#333333', t3d: '#fff' },
         'P':  { valence: 5, r: 40, color: '#fdba74', border: '#fb923c', label: 'P', c3d: '#FFA500', t3d: '#fff' }
     };
 
@@ -297,15 +306,20 @@
         slots: [null, null, null, null], 
         mode: '2d',
         rotation: { x: 0.2, y: 0.2 },
-        angle: null
+        angle: null,
+        zoom: 1.0 // Added for zoom functionality
     };
     
     let drag = { item: null, active: false, x: 0, y: 0 };
     let rotate = { active: false, lastX: 0, lastY: 0 };
+    
+    // Joystick state
+    let joystick = { active: false, startX: 0, startY: 0, dx: 0, dy: 0 };
 
     const canvas = document.getElementById('simCanvas');
     const ctx = canvas.getContext('2d');
     const wrapper = document.getElementById('canvas-wrapper');
+    const pad = document.getElementById('rotation-pad');
 
     /* ================= INIT ================= */
     window.onload = function() {
@@ -317,6 +331,11 @@
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     canvas.addEventListener('pointerdown', onDown);
+    // Added wheel listener for zoom
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    
+    // Joystick Listeners
+    pad.addEventListener('pointerdown', onPadDown);
 
     function resize() {
         const dpr = window.devicePixelRatio || 1;
@@ -389,6 +408,8 @@
     function resetLab() {
         setCenter('C');
         state.mode = '2d';
+        state.zoom = 1.0; // Reset Zoom
+        state.rotation = {x:0.2, y:0.2}; // Reset Rotation
         document.getElementById('btn-2d').click();
     }
 
@@ -455,7 +476,6 @@
 
         if (bondedAtoms > 0 && radicals === 0) {
             isStable = true;
-            // FIX: Diatomic molecule is always linear regardless of Lone Pairs
             if (bondedAtoms === 1) {
                 name = "선형 (Linear)";
             }
@@ -465,7 +485,6 @@
                 if(lp===0) {
                     const bondedTypes = [];
                     for(let i=0; i<4; i++) if(state.slots[i] && state.slots[i].main) bondedTypes.push(state.slots[i].type);
-                    
                     const isRegular = bondedTypes.every(t => t === bondedTypes[0]);
                     name = isRegular ? "정사면체" : "사면체";
                 }
@@ -525,15 +544,22 @@
         if(state.mode === '2d') {
             draw2D(cx, cy, s);
         } else {
-            // In 3D mode, ensure background is black (handled by CSS, but nice to be explicit if exporting image)
-            // But since CSS handles it for the wrapper, we can just clear rect which is transparent
-            // For now, simple clearRect works because the canvas is transparent over the bg color.
-            draw3D(cx, cy, s);
+            // Apply zoom in 3D
+            draw3D(cx, cy, s * state.zoom);
         }
+        
+        // Update rotation if joystick active
+        if (joystick.active) {
+            // Map joystick dx/dy to rotation
+            state.rotation.y += joystick.dx * 0.05;
+            state.rotation.x += joystick.dy * 0.05;
+        }
+
         requestAnimationFrame(animate);
     }
 
     function draw2D(cx, cy, s) {
+        // 2D Draw logic (existing)
         const cInfo = ATOMS[state.center];
         const baseE = getInitialElectrons(state.center);
         const angles = [-Math.PI/2, 0, Math.PI/2, Math.PI];
@@ -632,13 +658,12 @@
                 const lig = ligands[idx];
                 if(lig) {
                     const info = ATOMS[lig.type];
-                    // Smart shortening for visual clarity (Ball & Stick)
                     const centerR = ATOMS[state.center].r * s;
                     const ligR = info.r * s;
                     objs.push({
                         t:'stick', 
                         x: r.x*scale, y: r.y*scale, z: r.z*scale, 
-                        w: lig.order*6*s, // Thicker bonds
+                        w: lig.order*6*s, 
                         cR: centerR, lR: ligR 
                     });
                     objs.push({t:'a', x:r.x*scale, y:r.y*scale, z:r.z*scale, r:info.r*s, c:info.c3d, tc:info.t3d, l:info.label});
@@ -655,17 +680,13 @@
             const x = cx+o.x, y = cy+o.y, zS = 1 + o.z/(1000*s);
             if(o.t==='stick') {
                 const ang = Math.atan2(o.y, o.x);
-                // Start a bit inside center atom
                 const sx = cx + Math.cos(ang) * (o.cR * 0.2) * zS;
                 const sy = cy + Math.sin(ang) * (o.cR * 0.2) * zS;
                 
                 ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(x,y);
-                // "Silver" cylinder bond
                 ctx.strokeStyle="#C0C0C0"; 
                 ctx.lineWidth=o.w*zS; 
                 ctx.lineCap="round"; 
-                
-                // Add a simple highlight line to fake a cylinder
                 ctx.stroke();
                 
                 ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(x,y);
@@ -676,32 +697,24 @@
             } else if(o.t==='c' || o.t==='a') {
                 draw3DAtom(x, y, o.r*zS, o.c, o.tc, o.l||state.center);
             } else {
-                // Lone Pair Lobe
                 const ang=Math.atan2(y-cy, x-cx), d=Math.hypot(x-cx, y-cy);
                 ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
                 ctx.beginPath(); ctx.moveTo(0,0);
-                // Lobe shape
                 ctx.quadraticCurveTo(d/2, 25*s*zS, d, 0); ctx.quadraticCurveTo(d/2, -25*s*zS, 0, 0);
                 
-                // Ghostly gradient for LP
                 let grd = ctx.createRadialGradient(d/2, 0, 0, d/2, 0, d/2);
                 grd.addColorStop(0, "rgba(255, 255, 100, 0.4)");
                 grd.addColorStop(1, "rgba(255, 255, 100, 0.05)");
                 
-                ctx.fillStyle=grd; 
-                ctx.fill(); 
-                
-                // Dotted outline
+                ctx.fillStyle=grd; ctx.fill(); 
                 ctx.strokeStyle="rgba(255,255,100,0.3)";
                 ctx.lineWidth=1;
                 ctx.setLineDash([2,2]);
                 ctx.stroke();
-                
                 ctx.restore();
             }
         });
 
-        // 3D Angle
         if(bondPoints.length >= 2 && state.angle) {
             let a1 = Math.atan2(bondPoints[0].y, bondPoints[0].x);
             let a2 = Math.atan2(bondPoints[1].y, bondPoints[1].x);
@@ -740,23 +753,16 @@
     }
 
     function draw3DAtom(x, y, r, color, textColor, text) {
-        // Ball and Stick style gradient
         let grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
-        grad.addColorStop(0, "#ffffff"); // Specular highlight
-        grad.addColorStop(0.3, color);   // Base color
-        grad.addColorStop(1, "#000000"); // Shadow/Shading
+        grad.addColorStop(0, "#ffffff"); 
+        grad.addColorStop(0.3, color);   
+        grad.addColorStop(1, "#000000"); 
 
-        ctx.beginPath(); 
-        ctx.arc(x, y, r, 0, 6.28); 
-        ctx.fillStyle = grad; 
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fillStyle = grad; ctx.fill();
 
-        // 3D Text (Serif font)
         ctx.fillStyle = textColor; 
         ctx.font = `normal ${r*0.7}px 'Times New Roman', serif`;
-        ctx.textAlign="center"; 
-        ctx.textBaseline="middle"; 
-        ctx.fillText(text, x, y);
+        ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text, x, y);
     }
 
     function drawDot(x, y, s) {
@@ -799,22 +805,11 @@
     }
 
     function getVSEPRPoints(bp, lp) {
-        // LINEARITY FIX: If only 1 bonded atom, force it to be linear on axis
-        // regardless of lone pairs (SN). This solves the "bent F2" visual issue.
         if(bp === 1) {
              let res = [{x:0, y:-1, z:0, type:'bond'}];
-             // Add lone pairs afterwards just for visual completeness if needed,
-             // but visually the bond will be straight.
-             // We can arrange LPs in a ring around the axis
              for(let k=0; k<lp; k++) {
-                 // Place LPs in a triangle around the Y axis
                  const angle = (k / lp) * Math.PI * 2;
-                 res.push({
-                     x: Math.cos(angle), 
-                     y: 0.3, // Slightly up
-                     z: Math.sin(angle), 
-                     type: 'lone'
-                 });
+                 res.push({ x: Math.cos(angle), y: 0.3, z: Math.sin(angle), type: 'lone' });
              }
              return res;
         }
@@ -826,8 +821,6 @@
         else if(sn===4) p=[{x:0,y:-1,z:0},{x:0.94,y:0.33,z:0},{x:-0.47,y:0.33,z:0.816},{x:-0.47,y:0.33,z:-0.816}];
         
         let res = p.map(pt => ({...pt, type:'bond'}));
-        
-        // Assign types based on counts
         for(let k=0; k<lp; k++) res[sn-1-k].type='lone'; 
         return res;
     }
@@ -840,6 +833,19 @@
     }
     
     /* Event Handlers */
+    function onWheel(e) {
+        // Zoom only in 3D mode
+        if(state.mode !== '3d') return;
+        e.preventDefault();
+        
+        // Simple zoom logic
+        const delta = e.deltaY * -0.001; 
+        state.zoom += delta;
+        // Clamp Zoom
+        if(state.zoom < 0.3) state.zoom = 0.3;
+        if(state.zoom > 3.0) state.zoom = 3.0;
+    }
+
     function startDrag(e, type) {
         if(state.mode === '3d') return;
         e.preventDefault();
@@ -856,6 +862,38 @@
             state.rotation.x += (my - rotate.lastY) * 0.01;
             rotate.lastX = mx; rotate.lastY = my;
         }
+        
+        if (joystick.active) {
+            e.preventDefault();
+            // Joystick logic relative to pad center
+            const padRect = pad.getBoundingClientRect();
+            const cx = padRect.left + padRect.width/2;
+            const cy = padRect.top + padRect.height/2;
+            
+            // Mouse absolute position
+            const px = e.clientX; 
+            const py = e.clientY;
+            
+            // Vector from center
+            let vx = px - cx;
+            let vy = py - cy;
+            
+            // Limit length to radius ~25px
+            const maxR = 25;
+            const dist = Math.hypot(vx, vy);
+            if (dist > maxR) {
+                const f = maxR / dist;
+                vx *= f; vy *= f;
+            }
+            
+            // Move stick thumb
+            const thumb = document.getElementById('stick-thumb');
+            thumb.style.transform = `translate(${vx}px, ${vy}px)`;
+            
+            // Normalize for rotation speed
+            joystick.dx = vx / maxR; // -1 to 1
+            joystick.dy = vy / maxR;
+        }
     }
     function onUp(e) {
         if(drag.active) {
@@ -866,8 +904,27 @@
             drag.active = false; drag.item = null;
         }
         rotate.active = false;
+        
+        if (joystick.active) {
+            joystick.active = false;
+            joystick.dx = 0; joystick.dy = 0;
+            document.getElementById('stick-thumb').style.transform = `translate(0px, 0px)`;
+            pad.style.cursor = 'grab';
+        }
+        
         canvas.style.cursor = state.mode === '3d' ? 'grab' : 'default';
     }
+    
+    function onPadDown(e) {
+        e.preventDefault();
+        e.stopPropagation(); // prevent canvas click
+        joystick.active = true;
+        pad.style.cursor = 'grabbing';
+        // Trigger initial move logic immediately
+        const rect = canvas.getBoundingClientRect(); // Dummy call, just need onMove to fire relative to window
+        // Actually onMove uses e.clientX which is global, so it's fine.
+    }
+    
     function onDown(e) {
         if(state.mode === '3d') {
             rotate.active = true; 
@@ -897,6 +954,8 @@
         document.getElementById('canvas-wrapper').classList.toggle('mode-3d', m==='3d');
         
         document.getElementById('blocker').classList.toggle('hidden', m==='2d');
+        document.getElementById('rotation-controls').classList.toggle('hidden', m==='2d'); // Toggle Controller
+        
         const i2 = document.getElementById('info-content-2d');
         const i3 = document.getElementById('info-content-3d');
         if(m==='2d') { i2.classList.remove('hidden'); i3.classList.add('hidden'); }
