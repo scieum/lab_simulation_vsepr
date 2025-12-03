@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lab:Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css" />
+    <style>
+        body {
+            font-family: 'Pretendard', sans-serif;
+            touch-action: none;
+            background-color: #f8fafc;
+            color: #334155;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Canvas */
+        .canvas-wrap {
+            position: relative;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.02);
+            border: 1px solid #cbd5e1;
+            overflow: hidden;
+            transition: background-color 0.5s ease;
+        }
+        .canvas-wrap.mode-3d {
+            background: #050505; /* Black background for 3D */
+            border-color: #333;
+        }
+
+        /* UI Panels */
+        .panel {
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Buttons & Items */
+        .atom-btn { transition: all 0.15s; }
+        .atom-btn:active { transform: scale(0.96); }
+        .atom-btn.active-center {
+            background-color: #4f46e5;
+            color: white;
+            border-color: #4f46e5;
+            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+        }
+
+        .source-item { 
+            cursor: grab; user-select: none; transition: transform 0.2s; 
+            background: #f8fafc;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 8px; border-radius: 12px; border: 1px solid #e2e8f0;
+        }
+        .source-item:active { cursor: grabbing; transform: scale(1.05); }
+        
+        .icon-canvas { display: block; margin-bottom: 4px; pointer-events: none; }
+
+        /* Info Text */
+        .info-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px dashed #e2e8f0; font-size: 13px;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #64748b; font-weight: 600; }
+        .info-value { color: #4f46e5; font-weight: 800; }
+
+        /* Animations */
+        .hidden-screen { display: none !important; }
+        .fade-in { animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .toast-box { animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        @keyframes slideUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+        .btn-pulse { animation: pulse-blue 2s infinite; }
+        @keyframes pulse-blue {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+
+        /* Background Blobs for Main Menu */
+        .animate-blob { animation: blob 7s infinite; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+    <div id="main-menu" class="min-h-screen flex flex-col items-center justify-center p-6 fade-in relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+            <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+            <div class="absolute top-0 right-1/4 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+            <div class="absolute -bottom-32 left-1/2 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+        </div>
+
+        <div class="text-center max-w-3xl z-10">
+            <span class="text-xs md:text-sm font-bold text-indigo-600 uppercase tracking-[0.2em] mb-4 block">Virtual Science Lab</span>
+            
+            <h1 class="text-5xl md:text-7xl font-black text-slate-800 tracking-tight mb-8 leading-tight">
+                Lab:Simulation
+            </h1>
+            
+            <p class="text-slate-500 text-lg mb-12 font-medium">
+                원자들의 결합과 전자쌍 반발 이론을<br>3차원 시뮬레이션으로 체험해보세요.
+            </p>
+            
+            <button onclick="startSimulation()" class="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-indigo-600 font-lg rounded-full hover:bg-indigo-700 hover:shadow-xl hover:-translate-y-1 focus:outline-none ring-offset-2 focus:ring-2 ring-indigo-500">
+                <span class="mr-2">실험 시작하기</span>
+                <svg class="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+            </button>
+        </div>
+        
+        <footer class="absolute bottom-8 w-full flex items-center justify-center gap-2 text-slate-400 text-xs font-medium">
+            <span>© 2025 사이음(sci_eum). 과학의 사이, 사람을 잇다.</span>
+            <a href="https://knuechem13.notion.site/ebd/2ba137a305b880fbac23d7b204098e51" target="_blank" class="hover:opacity-80 transition-opacity" title="오류 문의">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/e/e9/Notion-logo.svg" alt="Notion" class="w-4 h-4 opacity-60 hover:opacity-100 transition-opacity grayscale hover:grayscale-0">
+            </a>
+        </footer>
+    </div>
+
+    <div id="lab-container" class="hidden-screen min-h-screen flex flex-col p-4 md:p-6 fade-in">
+        
+        <header class="flex justify-between items-center mb-4 px-1 flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <button onclick="goToHome()" class="p-2 rounded-full hover:bg-white hover:shadow-sm text-slate-400 hover:text-slate-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </button>
+                <div>
+                    <div class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Virtual Science Lab</div>
+                    <h1 class="text-xl font-black text-slate-800">분자 구조 시뮬레이션</h1>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                <button onclick="setMode('2d')" id="btn-2d" class="px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all">2D 구조식</button>
+                <button onclick="setMode('3d')" id="btn-3d" class="px-4 py-2 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all">3D 입체형</button>
+            </div>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-4 flex-1 h-full overflow-hidden">
+            
+            <div class="flex-1 canvas-wrap" id="canvas-wrapper">
+                <canvas id="simCanvas" class="block w-full h-full"></canvas>
+                
+                <div id="toast-msg" class="hidden absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-5 py-3 rounded-full shadow-xl text-xs font-bold z-20 toast-box backdrop-blur-sm">
+                    <span id="toast-text">알림</span>
+                </div>
+
+                <div class="absolute bottom-5 left-5 z-10">
+                     <button onclick="resetLab()" class="bg-white/90 hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center gap-2 backdrop-blur">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        초기화
+                     </button>
+                </div>
+
+                <div class="absolute top-5 right-5 z-10 w-64">
+                    <div class="bg-white/95 backdrop-blur border border-slate-200 p-4 rounded-2xl shadow-lg">
+                        <div class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Molecule Status</div>
+                        <div class="flex flex-col">
+                            <div class="info-row">
+                                <span class="info-label">비공유 전자쌍</span>
+                                <span class="info-value" id="val-lp">0개</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">결합한 원자 수</span>
+                                <span class="info-value" id="val-bp">0개</span>
+                            </div>
+                            <div class="mt-4 text-center h-10 flex items-center justify-center">
+                                <div id="info-content-2d" class="w-full">
+                                    <div id="geo-status-text">
+                                        <div id="geo-status" class="text-[11px] font-bold text-slate-400">원자를 배치하세요</div>
+                                    </div>
+                                    <button id="btn-go-3d" onclick="setMode('3d')" class="hidden w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg btn-pulse transition-all shadow-md flex items-center justify-center gap-2">
+                                        <span>입체 구조 확인</span>
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                    </button>
+                                </div>
+                                <div id="info-content-3d" class="hidden w-full">
+                                    <div id="geo-name-3d" class="text-xl font-black text-indigo-600">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:w-80 flex flex-col gap-3 overflow-y-auto pb-5 flex-shrink-0 scrollbar-hide">
+                
+                <div class="panel p-4">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px]">1</span>
+                        중심 원자 선택
+                    </h2>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setCenter('Be')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">Be</button>
+                        <button onclick="setCenter('B')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">B</button>
+                        <button onclick="setCenter('C')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white active-center">C</button>
+                        <button onclick="setCenter('N')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">N</button>
+                        <button onclick="setCenter('O')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">O</button>
+                        <button onclick="setCenter('F')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">F</button>
+                        <button onclick="setCenter('P')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">P</button>
+                        <button onclick="setCenter('S')" class="atom-btn p-2 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 bg-white">S</button>
+                    </div>
+                </div>
+
+                <div class="panel p-4 flex-grow flex flex-col relative">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px]">2</span>
+                        결합 원자 (드래그)
+                    </h2>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'H')">
+                            <canvas id="icon-H" width="50" height="50" class="icon-canvas"></canvas>
+                            <span class="text-xs font-bold text-slate-500">수소 (H)</span>
+                        </div>
+                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'F')">
+                            <canvas id="icon-F" width="50" height="50" class="icon-canvas"></canvas>
+                            <span class="text-xs font-bold text-green-600">플루오린 (F)</span>
+                        </div>
+                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'Cl')">
+                            <canvas id="icon-Cl" width="50" height="50" class="icon-canvas"></canvas>
+                            <span class="text-xs font-bold text-emerald-600">염소 (Cl)</span>
+                        </div>
+                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'O')">
+                            <canvas id="icon-O" width="50" height="50" class="icon-canvas"></canvas>
+                            <span class="text-xs font-bold text-red-600">산소 (O)</span>
+                        </div>
+                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'S')">
+                            <canvas id="icon-S" width="50" height="50" class="icon-canvas"></canvas>
+                            <span class="text-xs font-bold text-yellow-600">황 (S)</span>
+                        </div>
+                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'N')">
+                            <canvas id="icon-N" width="50" height="50" class="icon-canvas"></canvas>
+                            <span class="text-xs font-bold text-blue-600">질소 (N)</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 text-[11px] text-indigo-700 leading-relaxed mt-auto">
+                        <b>가이드:</b> 중심 원자의 <span class="text-red-500 font-bold">홀전자(점 1개)</span> 위에 원자를 놓으세요. 그림의 전자 배치를 보고 결합 가능 횟수를 확인할 수 있습니다.
+                    </div>
+                    
+                    <div id="blocker" class="hidden absolute inset-0 bg-white/70 backdrop-blur-[2px] z-10 rounded-xl flex items-center justify-center">
+                        <span class="bg-slate-800 text-white text-xs px-3 py-1.5 rounded-full font-bold shadow">2D 모드에서만 수정 가능</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    /* ================= NAVIGATION ================= */
+    function startSimulation() {
+        document.getElementById('main-menu').classList.add('hidden-screen');
+        document.getElementById('lab-container').classList.remove('hidden-screen');
+        setTimeout(() => { resize(); renderIcons(); animate(); }, 100);
+    }
+    function goToHome() {
+        document.getElementById('lab-container').classList.add('hidden-screen');
+        document.getElementById('main-menu').classList.remove('hidden-screen');
+        resetLab();
+    }
+
+    /* ================= DATA CONFIG ================= */
+    const ATOMS = {
+        // 3D Colors: Adjusted for gradients (Ball & Stick style)
+        // c3d: Main sphere color, t3d: Text color in 3D
+        'H':  { valence: 1, bondOrder: 1, color: '#f8fafc', border: '#94a3b8', r: 24, label: 'H', c3d: '#F0F0F0', t3d: '#333' },
+        'F':  { valence: 7, bondOrder: 1, color: '#dcfce7', border: '#4ade80', r: 30, label: 'F', c3d: '#90EE90', t3d: '#004d00' }, 
+        'Cl': { valence: 7, bondOrder: 1, color: '#d1fae5', border: '#10b981', r: 32, label: 'Cl', c3d: '#00FF00', t3d: '#003300' },
+        'O':  { valence: 6, bondOrder: 2, color: '#fee2e2', border: '#ef4444', r: 30, label: 'O', c3d: '#FF0000', t3d: '#fff' },
+        'S':  { valence: 6, bondOrder: 2, color: '#fef3c7', border: '#eab308', r: 34, label: 'S', c3d: '#FFFF00', t3d: '#666' }, 
+        'N':  { valence: 5, bondOrder: 3, color: '#dbeafe', border: '#2563eb', r: 30, label: 'N', c3d: '#3050F8', t3d: '#fff' },
+        
+        // Centers
+        'Be': { valence: 2, r: 32, color: '#e2e8f0', border: '#cbd5e1', label: 'Be', c3d: '#909090', t3d: '#fff' },
+        'B':  { valence: 3, r: 32, color: '#fca5a5', border: '#f87171', label: 'B', c3d: '#FFAA77', t3d: '#000' },
+        'C':  { valence: 4, r: 38, color: '#a5b4fc', border: '#818cf8', label: 'C', c3d: '#333333', t3d: '#fff' }, // Dark Grey for Carbon
+        'P':  { valence: 5, r: 40, color: '#fdba74', border: '#fb923c', label: 'P', c3d: '#FFA500', t3d: '#fff' }
+    };
+
+    let state = {
+        center: 'C',
+        slots: [null, null, null, null], 
+        mode: '2d',
+        rotation: { x: 0.2, y: 0.2 },
+        angle: null
+    };
+    
+    let drag = { item: null, active: false, x: 0, y: 0 };
+    let rotate = { active: false, lastX: 0, lastY: 0 };
+
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('canvas-wrapper');
+
+    /* ================= INIT ================= */
+    window.onload = function() {
+        renderIcons();
+        resize();
+        updateUI();
+    };
+    window.addEventListener('resize', resize);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointerdown', onDown);
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = wrapper.clientWidth * dpr;
+        canvas.height = wrapper.clientHeight * dpr;
+        ctx.scale(dpr, dpr);
+    }
+
+    function renderIcons() {
+        ['H','F','Cl','O','S','N'].forEach(type => {
+            const cvs = document.getElementById(`icon-${type}`);
+            if(!cvs) return;
+            const cx = cvs.getContext('2d');
+            const w = cvs.width, h = cvs.height;
+            const info = ATOMS[type];
+            cx.clearRect(0,0,w,h);
+            
+            cx.beginPath(); cx.arc(w/2, h/2, 17, 0, 6.28);
+            cx.fillStyle = info.color; cx.fill();
+            cx.strokeStyle = info.border; cx.lineWidth = 2; cx.stroke();
+            cx.fillStyle = "#334155"; cx.font = "bold 14px sans-serif";
+            cx.textAlign="center"; cx.textBaseline="middle"; cx.fillText(type, w/2, h/2);
+
+            cx.fillStyle = "#1e293b";
+            const r = 19; 
+            const drawDot = (ang) => { cx.beginPath(); cx.arc(w/2+Math.cos(ang)*r, h/2+Math.sin(ang)*r, 2, 0, 6.28); cx.fill(); };
+            const drawPair = (ang) => { drawDot(ang - 0.18); drawDot(ang + 0.18); };
+
+            const T=-1.57, R=0, B=1.57, L=3.14;
+            if (type === 'H') { drawDot(T); }
+            else if (type === 'F' || type === 'Cl') { drawPair(T); drawPair(R); drawPair(B); drawDot(L); }
+            else if (type === 'O' || type === 'S') { drawPair(T); drawPair(B); drawDot(L); drawDot(R); }
+            else if (type === 'N') { drawPair(T); drawDot(R); drawDot(B); drawDot(L); }
+        });
+    }
+
+    /* ================= LOGIC ================= */
+    function getInitialElectrons(type) {
+        const v = ATOMS[type].valence;
+        let s = ['empty','empty','empty','empty'];
+        if (v === 2) { s[1] = 'single'; s[3] = 'single'; return s; }
+        for(let i=0; i<v; i++) {
+            const idx = i % 4;
+            if(s[idx] === 'empty') s[idx] = 'single';
+            else if(s[idx] === 'single') s[idx] = 'pair';
+        }
+        return s;
+    }
+
+    function getQuadrant(dx, dy) {
+        if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 1 : 3; 
+        else return dy > 0 ? 2 : 0; 
+    }
+
+    function setCenter(type) {
+        if(state.mode === '3d') return;
+        state.center = type;
+        state.slots = [null, null, null, null];
+        document.querySelectorAll('.atom-btn').forEach(b => {
+            b.classList.remove('active-center');
+            b.classList.add('bg-white', 'text-slate-700');
+            if(b.innerText.startsWith(type)) {
+                b.classList.add('active-center');
+                b.classList.remove('bg-white', 'text-slate-700');
+            }
+        });
+        updateUI();
+    }
+
+    function resetLab() {
+        setCenter('C');
+        state.mode = '2d';
+        document.getElementById('btn-2d').click();
+    }
+
+    function tryBond(dx, dy, ligType) {
+        const baseE = getInitialElectrons(state.center);
+        let radicals = 0; let filled=0;
+        for(let i=0; i<4; i++) {
+            if(!state.slots[i] && baseE[i]==='single') radicals++;
+            if(state.slots[i]) filled++;
+        }
+        const isStable = (radicals===0 && filled>0);
+        if(isStable) { showToast("더 이상 결합이 불가능합니다."); return; }
+
+        const q = getQuadrant(dx, dy);
+        const bondOrder = ATOMS[ligType].bondOrder;
+        
+        if(state.slots[q] !== null) { showToast("이미 사용 중인 위치입니다."); return; }
+        if(baseE[q] === 'pair') { showToast("비공유 전자쌍에는 결합 불가합니다."); return; }
+        if(baseE[q] === 'empty') { showToast("전자가 없는 곳입니다."); return; }
+
+        let needed = bondOrder - 1;
+        let availIndices = [];
+        for(let i=0; i<4; i++) {
+            if(i !== q && state.slots[i] === null && baseE[i] === 'single') availIndices.push(i);
+        }
+
+        if(availIndices.length < needed) { showToast(`홀전자가 부족합니다.`); return; }
+
+        state.slots[q] = { type: ligType, main: true, order: bondOrder };
+        for(let k=0; k<needed; k++) {
+            state.slots[availIndices[k]] = { type: ligType, main: false, ref: q };
+        }
+        updateUI();
+    }
+
+    function removeBond(idx) {
+        const s = state.slots[idx];
+        if(!s) return;
+        const mainIdx = s.main ? idx : s.ref;
+        for(let i=0; i<4; i++) {
+            if(state.slots[i] && (i === mainIdx || state.slots[i].ref === mainIdx)) state.slots[i] = null;
+        }
+        updateUI();
+    }
+
+    function updateUI() {
+        const baseE = getInitialElectrons(state.center);
+        let lp=0; let bondedAtoms=0; let domains=0; let radicals=0;
+
+        for(let i=0; i<4; i++) {
+            if(state.slots[i]) {
+                if(state.slots[i].main) { bondedAtoms++; domains++; }
+            } else {
+                if(baseE[i] === 'pair') { lp++; domains++; }
+                else if(baseE[i] === 'single') radicals++;
+            }
+        }
+
+        document.getElementById('val-lp').textContent = `${lp}개`;
+        document.getElementById('val-bp').textContent = `${bondedAtoms}개`;
+
+        let name = "알 수 없음";
+        let isStable = false;
+
+        if (bondedAtoms > 0 && radicals === 0) {
+            isStable = true;
+            // FIX: Diatomic molecule is always linear regardless of Lone Pairs
+            if (bondedAtoms === 1) {
+                name = "선형 (Linear)";
+            }
+            else if(domains === 2) name = "선형 (Linear)";
+            else if(domains === 3) name = (lp===0) ? "평면 삼각형" : "굽은형 (Bent)";
+            else if(domains === 4) {
+                if(lp===0) {
+                    const bondedTypes = [];
+                    for(let i=0; i<4; i++) if(state.slots[i] && state.slots[i].main) bondedTypes.push(state.slots[i].type);
+                    
+                    const isRegular = bondedTypes.every(t => t === bondedTypes[0]);
+                    name = isRegular ? "정사면체" : "사면체";
+                }
+                else if(lp===1) name = "삼각뿔형";
+                else name = "굽은형 (Bent)";
+            }
+        } else {
+            if (bondedAtoms === 1 && radicals === 0) {
+                isStable = true;
+                name = "선형 (Linear)";
+            } else {
+                name = (bondedAtoms===0) ? "-" : "불안정 구조";
+            }
+        }
+        
+        const btn3d = document.getElementById('btn-go-3d');
+        const statusText = document.getElementById('geo-status-text');
+        
+        if (isStable) {
+            btn3d.classList.remove('hidden');
+            statusText.classList.add('hidden');
+            document.getElementById('geo-name-3d').textContent = name;
+            state.angle = getBondAngle(domains, lp, bondedAtoms);
+        } else {
+            btn3d.classList.add('hidden');
+            statusText.classList.remove('hidden');
+            const msg = bondedAtoms===0 ? "원자를 배치하세요" : "불안정 (홀전자 남음)";
+            const col = bondedAtoms===0 ? "text-slate-400" : "text-red-500";
+            document.getElementById('geo-status').textContent = msg;
+            document.getElementById('geo-status').className = `text-[11px] font-bold ${col}`;
+        }
+    }
+
+    function getBondAngle(domains, lp, bondedAtoms) {
+        if(bondedAtoms === 1) return ""; 
+        if(domains === 2) return "180°";
+        if(domains === 3) return lp===0 ? "120°" : "120° 미만";
+        if(domains === 4) {
+            if(lp===0) return "109.5°";
+            if(lp===1) return "107°";
+            return "104.5°";
+        }
+        return "";
+    }
+
+    /* ================= RENDER & ANIM ================= */
+    function animate() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        
+        const w = wrapper.clientWidth, h = wrapper.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+        const s = dpr * 0.85; 
+        const cx = (w/2) * dpr;
+        const cy = (h/2) * dpr;
+
+        if(state.mode === '2d') {
+            draw2D(cx, cy, s);
+        } else {
+            // In 3D mode, ensure background is black (handled by CSS, but nice to be explicit if exporting image)
+            // But since CSS handles it for the wrapper, we can just clear rect which is transparent
+            // For now, simple clearRect works because the canvas is transparent over the bg color.
+            draw3D(cx, cy, s);
+        }
+        requestAnimationFrame(animate);
+    }
+
+    function draw2D(cx, cy, s) {
+        const cInfo = ATOMS[state.center];
+        const baseE = getInitialElectrons(state.center);
+        const angles = [-Math.PI/2, 0, Math.PI/2, Math.PI];
+        const dist = 110 * s; 
+
+        let radicals=0; for(let i=0;i<4;i++) if(!state.slots[i] && baseE[i]==='single') radicals++;
+        const isStable = (radicals===0 && state.slots.some(x=>x));
+
+        drawAtom2D(cx, cy, cInfo.r*s, cInfo.color, isStable?"#22c55e":'#94a3b8', isStable, state.center);
+
+        for(let i=0; i<4; i++) {
+            const ang = angles[i];
+            const slot = state.slots[i];
+            const ex = cx + Math.cos(ang)*(cInfo.r+20)*s;
+            const ey = cy + Math.sin(ang)*(cInfo.r+20)*s;
+
+            if(slot) {
+                if(slot.main) {
+                    const lInfo = ATOMS[slot.type];
+                    const lx = cx + Math.cos(ang)*dist;
+                    const ly = cy + Math.sin(ang)*dist;
+                    drawBond2D(cx, cy, lx, ly, slot.order, s);
+                    drawAtom2D(lx, ly, lInfo.r*s, lInfo.color, lInfo.border, false, lInfo.label);
+                    drawLigandDots(lx, ly, ang, lInfo, s);
+                }
+            } else {
+                if(baseE[i] === 'single') drawDot(ex, ey, s);
+                else if(baseE[i] === 'pair') {
+                    const p = ang + 1.57;
+                    const shift = 3.5 * s;
+                    drawDot(ex+Math.cos(p)*shift, ey+Math.sin(p)*shift, s);
+                    drawDot(ex-Math.cos(p)*shift, ey-Math.sin(p)*shift, s);
+                }
+            }
+        }
+
+        if(drag.active && drag.item) {
+            const dx = drag.x * (window.devicePixelRatio||1);
+            const dy = drag.y * (window.devicePixelRatio||1);
+            const dInfo = ATOMS[drag.item];
+            ctx.globalAlpha = 0.6;
+            drawAtom2D(dx, dy, dInfo.r*s, dInfo.color, dInfo.border, false, dInfo.label);
+            ctx.globalAlpha = 1;
+
+            if(Math.hypot(dx-cx, dy-cy) < 140*s) {
+                const q = getQuadrant(dx-cx, dy-cy);
+                const ang = angles[q];
+                let valid = true;
+                if(state.slots[q] || baseE[q]!=='single' || isStable) valid = false;
+                const needed = dInfo.bondOrder - 1;
+                if(needed > 0) {
+                    let avail = 0;
+                    for(let i=0; i<4; i++) if(i!==q && !state.slots[i] && baseE[i]==='single') avail++;
+                    if(avail < needed) valid = false;
+                }
+                const color = valid ? "#22c55e" : "#ef4444";
+                ctx.beginPath(); ctx.moveTo(cx,cy); 
+                ctx.lineTo(cx+Math.cos(ang)*dist, cy+Math.sin(ang)*dist);
+                ctx.strokeStyle=color; ctx.lineWidth=2*s; 
+                ctx.setLineDash([5*s,5*s]); ctx.stroke(); ctx.setLineDash([]);
+            }
+        }
+    }
+
+    function draw3D(cx, cy, s) {
+        let bp=0, lp=0;
+        let ligands = [];
+        const baseE = getInitialElectrons(state.center);
+        let hasRadicals = false;
+
+        for(let i=0; i<4; i++) {
+            if(state.slots[i]) {
+                if(state.slots[i].main) { bp++; ligands.push(state.slots[i]); }
+            } else {
+                if(baseE[i] === 'pair') lp++;
+                if(baseE[i] === 'single') hasRadicals = true;
+            }
+        }
+
+        if (hasRadicals) {
+             ctx.fillStyle = "#fff"; ctx.font = `bold ${16*s}px 'Times New Roman', serif`;
+             ctx.textAlign = "center"; ctx.fillText("불안정 상태 (홀전자가 남아있음)", cx, cy + 120*s);
+             draw3DAtom(cx, cy, ATOMS[state.center].r*s, ATOMS[state.center].c3d, ATOMS[state.center].t3d, state.center);
+             return;
+        }
+
+        const pts = getVSEPRPoints(bp, lp);
+        const scale = 110 * s; 
+        
+        let objs = [{t:'c', x:0, y:0, z:0, r:ATOMS[state.center].r*s, c:ATOMS[state.center].c3d, tc:ATOMS[state.center].t3d}];
+        let bondPoints = [];
+
+        pts.forEach((p, idx) => {
+            const r = rot3D(p.x, p.y, p.z);
+            if(p.type === 'bond') {
+                const lig = ligands[idx];
+                if(lig) {
+                    const info = ATOMS[lig.type];
+                    // Smart shortening for visual clarity (Ball & Stick)
+                    const centerR = ATOMS[state.center].r * s;
+                    const ligR = info.r * s;
+                    objs.push({
+                        t:'stick', 
+                        x: r.x*scale, y: r.y*scale, z: r.z*scale, 
+                        w: lig.order*6*s, // Thicker bonds
+                        cR: centerR, lR: ligR 
+                    });
+                    objs.push({t:'a', x:r.x*scale, y:r.y*scale, z:r.z*scale, r:info.r*s, c:info.c3d, tc:info.t3d, l:info.label});
+                    bondPoints.push({x:r.x*scale, y:r.y*scale});
+                }
+            } else {
+                objs.push({t:'lp', x:r.x*scale, y:r.y*scale, z:r.z*scale});
+            }
+        });
+        
+        objs.sort((a,b)=>a.z-b.z);
+
+        objs.forEach(o => {
+            const x = cx+o.x, y = cy+o.y, zS = 1 + o.z/(1000*s);
+            if(o.t==='stick') {
+                const ang = Math.atan2(o.y, o.x);
+                // Start a bit inside center atom
+                const sx = cx + Math.cos(ang) * (o.cR * 0.2) * zS;
+                const sy = cy + Math.sin(ang) * (o.cR * 0.2) * zS;
+                
+                ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(x,y);
+                // "Silver" cylinder bond
+                ctx.strokeStyle="#C0C0C0"; 
+                ctx.lineWidth=o.w*zS; 
+                ctx.lineCap="round"; 
+                
+                // Add a simple highlight line to fake a cylinder
+                ctx.stroke();
+                
+                ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(x,y);
+                ctx.strokeStyle="rgba(255,255,255,0.3)";
+                ctx.lineWidth=o.w*zS * 0.3;
+                ctx.stroke();
+                
+            } else if(o.t==='c' || o.t==='a') {
+                draw3DAtom(x, y, o.r*zS, o.c, o.tc, o.l||state.center);
+            } else {
+                // Lone Pair Lobe
+                const ang=Math.atan2(y-cy, x-cx), d=Math.hypot(x-cx, y-cy);
+                ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
+                ctx.beginPath(); ctx.moveTo(0,0);
+                // Lobe shape
+                ctx.quadraticCurveTo(d/2, 25*s*zS, d, 0); ctx.quadraticCurveTo(d/2, -25*s*zS, 0, 0);
+                
+                // Ghostly gradient for LP
+                let grd = ctx.createRadialGradient(d/2, 0, 0, d/2, 0, d/2);
+                grd.addColorStop(0, "rgba(255, 255, 100, 0.4)");
+                grd.addColorStop(1, "rgba(255, 255, 100, 0.05)");
+                
+                ctx.fillStyle=grd; 
+                ctx.fill(); 
+                
+                // Dotted outline
+                ctx.strokeStyle="rgba(255,255,100,0.3)";
+                ctx.lineWidth=1;
+                ctx.setLineDash([2,2]);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+        });
+
+        // 3D Angle
+        if(bondPoints.length >= 2 && state.angle) {
+            let a1 = Math.atan2(bondPoints[0].y, bondPoints[0].x);
+            let a2 = Math.atan2(bondPoints[1].y, bondPoints[1].x);
+            if(a1 < 0) a1 += Math.PI*2; if(a2 < 0) a2 += Math.PI*2;
+            let diff = a2 - a1;
+            let start = a1, end = a2;
+            if (diff > Math.PI) { start = a2; end = a1 + Math.PI*2; }
+            else if (diff < -Math.PI) { start = a1; end = a2 + Math.PI*2; }
+            else if (diff > 0) { start = a1; end = a2; }
+            else { start = a2; end = a1; }
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, 60*s, start, end);
+            ctx.strokeStyle = "#FFFF00"; ctx.lineWidth = 2; ctx.stroke();
+
+            let mid = (start + end) / 2;
+            let tx = cx + Math.cos(mid)*110*s;
+            let ty = cy + Math.sin(mid)*110*s;
+            
+            ctx.font = `bold ${16*s}px 'Times New Roman', serif`; ctx.textAlign = "center"; ctx.textBaseline="middle";
+            ctx.fillStyle = "#FFFF00";
+            ctx.fillText(state.angle, tx, ty);
+        }
+    }
+
+    /* --- Helpers --- */
+    function drawAtom2D(x, y, r, color, border, glow, text) {
+        if(glow) {
+            ctx.save(); ctx.shadowBlur=15; ctx.shadowColor="#22c55e"; 
+            ctx.beginPath(); ctx.arc(x,y,r,0,6.28); ctx.fillStyle="#fff"; ctx.fill(); ctx.restore();
+        }
+        ctx.beginPath(); ctx.arc(x,y,r,0,6.28); ctx.fillStyle = color; ctx.fill();
+        ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = "#334155"; ctx.font = `bold ${r*0.5}px sans-serif`;
+        ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text, x, y);
+    }
+
+    function draw3DAtom(x, y, r, color, textColor, text) {
+        // Ball and Stick style gradient
+        let grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
+        grad.addColorStop(0, "#ffffff"); // Specular highlight
+        grad.addColorStop(0.3, color);   // Base color
+        grad.addColorStop(1, "#000000"); // Shadow/Shading
+
+        ctx.beginPath(); 
+        ctx.arc(x, y, r, 0, 6.28); 
+        ctx.fillStyle = grad; 
+        ctx.fill();
+
+        // 3D Text (Serif font)
+        ctx.fillStyle = textColor; 
+        ctx.font = `normal ${r*0.7}px 'Times New Roman', serif`;
+        ctx.textAlign="center"; 
+        ctx.textBaseline="middle"; 
+        ctx.fillText(text, x, y);
+    }
+
+    function drawDot(x, y, s) {
+        ctx.beginPath(); ctx.arc(x, y, 3.5*s, 0, 6.28); ctx.fillStyle="#1e293b"; ctx.fill();
+    }
+    
+    function drawBond2D(x1, y1, x2, y2, order, s) {
+        const ang = Math.atan2(y2-y1, x2-x1), d = Math.hypot(x2-x1, y2-y1);
+        const start=30*s, end=d-30*s;
+        ctx.save(); ctx.translate(x1, y1); ctx.rotate(ang);
+        ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 3*s; ctx.lineCap="round";
+        if(order===1) { ctx.beginPath(); ctx.moveTo(start,0); ctx.lineTo(end,0); ctx.stroke(); }
+        else if(order===2) { 
+            ctx.beginPath(); ctx.moveTo(start,-5*s); ctx.lineTo(end,-5*s); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(start,5*s); ctx.lineTo(end,5*s); ctx.stroke();
+        } else {
+            ctx.beginPath(); ctx.moveTo(start,-7*s); ctx.lineTo(end,-7*s); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(start,0); ctx.lineTo(end,0); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(start,7*s); ctx.lineTo(end,7*s); ctx.stroke();
+        }
+        ctx.restore();
+    }
+    
+    function drawLigandDots(x, y, bondAngle, info, s) {
+        const lp = (info.valence - info.bondOrder)/2;
+        const r = (info.r + 2) * s; 
+        if(lp===3) { 
+            drawPair(x,y,bondAngle,r,s); drawPair(x,y,bondAngle+1.57,r,s); drawPair(x,y,bondAngle-1.57,r,s);
+        } else if(lp===2) { 
+            drawPair(x,y,bondAngle+1.0,r,s); drawPair(x,y,bondAngle-1.0,r,s); 
+        } else if(lp===1) { 
+            drawPair(x,y,bondAngle,r,s);
+        }
+    }
+    function drawPair(cx, cy, ang, r, s) {
+        const shift=2.5*s; 
+        const dx=cx+Math.cos(ang)*r, dy=cy+Math.sin(ang)*r;
+        const px=-Math.sin(ang)*shift, py=Math.cos(ang)*shift;
+        drawDot(dx+px, dy+py, s); drawDot(dx-px, dy-py, s);
+    }
+
+    function getVSEPRPoints(bp, lp) {
+        // LINEARITY FIX: If only 1 bonded atom, force it to be linear on axis
+        // regardless of lone pairs (SN). This solves the "bent F2" visual issue.
+        if(bp === 1) {
+             let res = [{x:0, y:-1, z:0, type:'bond'}];
+             // Add lone pairs afterwards just for visual completeness if needed,
+             // but visually the bond will be straight.
+             // We can arrange LPs in a ring around the axis
+             for(let k=0; k<lp; k++) {
+                 // Place LPs in a triangle around the Y axis
+                 const angle = (k / lp) * Math.PI * 2;
+                 res.push({
+                     x: Math.cos(angle), 
+                     y: 0.3, // Slightly up
+                     z: Math.sin(angle), 
+                     type: 'lone'
+                 });
+             }
+             return res;
+        }
+
+        const sn = bp+lp;
+        let p = [];
+        if(sn===2) p=[{x:1,y:0,z:0},{x:-1,y:0,z:0}];
+        else if(sn===3) p=[{x:0,y:-1,z:0},{x:0.866,y:0.5,z:0},{x:-0.866,y:0.5,z:0}];
+        else if(sn===4) p=[{x:0,y:-1,z:0},{x:0.94,y:0.33,z:0},{x:-0.47,y:0.33,z:0.816},{x:-0.47,y:0.33,z:-0.816}];
+        
+        let res = p.map(pt => ({...pt, type:'bond'}));
+        
+        // Assign types based on counts
+        for(let k=0; k<lp; k++) res[sn-1-k].type='lone'; 
+        return res;
+    }
+    
+    function rot3D(x, y, z) {
+        const rx = state.rotation.x, ry = state.rotation.y;
+        let y1 = y*Math.cos(rx) - z*Math.sin(rx), z1 = y*Math.sin(rx) + z*Math.cos(rx);
+        let x2 = x*Math.cos(ry) - z1*Math.sin(ry), z2 = x*Math.sin(ry) + z1*Math.cos(ry);
+        return {x:x2, y:y1, z:z2};
+    }
+    
+    /* Event Handlers */
+    function startDrag(e, type) {
+        if(state.mode === '3d') return;
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        drag.item = type; drag.active = true;
+        drag.x = e.clientX - rect.left; drag.y = e.clientY - rect.top;
+    }
+    function onMove(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+        if(drag.active) { drag.x = mx; drag.y = my; }
+        if(rotate.active) {
+            state.rotation.y += (mx - rotate.lastX) * 0.01;
+            state.rotation.x += (my - rotate.lastY) * 0.01;
+            rotate.lastX = mx; rotate.lastY = my;
+        }
+    }
+    function onUp(e) {
+        if(drag.active) {
+            const cx = wrapper.clientWidth/2, cy = wrapper.clientHeight/2;
+            if(Math.hypot(drag.x - cx, drag.y - cy) < 140) {
+                tryBond(drag.x - cx, drag.y - cy, drag.item);
+            }
+            drag.active = false; drag.item = null;
+        }
+        rotate.active = false;
+        canvas.style.cursor = state.mode === '3d' ? 'grab' : 'default';
+    }
+    function onDown(e) {
+        if(state.mode === '3d') {
+            rotate.active = true; 
+            const rect = canvas.getBoundingClientRect();
+            rotate.lastX = e.clientX - rect.left; rotate.lastY = e.clientY - rect.top;
+            canvas.style.cursor = 'grabbing';
+        } else {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+            const cx = wrapper.clientWidth/2, cy = wrapper.clientHeight/2;
+            const angles = [-Math.PI/2, 0, Math.PI/2, Math.PI];
+            for(let i=0; i<4; i++) {
+                if(state.slots[i] && state.slots[i].main) {
+                    const bx = cx + Math.cos(angles[i]) * 100;
+                    const by = cy + Math.sin(angles[i]) * 100;
+                    if(Math.hypot(mx-bx, my-by) < 30) { removeBond(i); break; }
+                }
+            }
+        }
+    }
+    function setMode(m) {
+        state.mode = m;
+        document.getElementById('btn-2d').className = m==='2d' ? "px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all" : "px-4 py-2 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all";
+        document.getElementById('btn-3d').className = m==='3d' ? "px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all" : "px-4 py-2 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all";
+        
+        // Toggle background mode class
+        document.getElementById('canvas-wrapper').classList.toggle('mode-3d', m==='3d');
+        
+        document.getElementById('blocker').classList.toggle('hidden', m==='2d');
+        const i2 = document.getElementById('info-content-2d');
+        const i3 = document.getElementById('info-content-3d');
+        if(m==='2d') { i2.classList.remove('hidden'); i3.classList.add('hidden'); }
+        else { i2.classList.add('hidden'); i3.classList.remove('hidden'); }
+    }
+    function showToast(msg) {
+        const t = document.getElementById('toast-msg');
+        document.getElementById('toast-text').innerText = msg;
+        t.classList.remove('hidden'); t.classList.remove('toast-box');
+        void t.offsetWidth; t.classList.add('toast-box');
+        if(window.tt) clearTimeout(window.tt);
+        window.tt = setTimeout(()=>t.classList.add('hidden'), 2000);
+    }
+</script>
+</body>
+</html>
