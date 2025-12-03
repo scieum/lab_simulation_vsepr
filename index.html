@@ -28,9 +28,10 @@
             overflow: hidden;
             transition: background-color 0.5s ease;
         }
+        /* 3D Mode Background - Changed to White as requested */
         .canvas-wrap.mode-3d {
-            background: #050505; /* Black background for 3D */
-            border-color: #333;
+            background: #ffffff; 
+            border-color: #cbd5e1;
         }
 
         /* UI Panels */
@@ -613,7 +614,7 @@
         }
 
         if (hasRadicals) {
-             ctx.fillStyle = "#fff"; ctx.font = `bold ${16*s}px 'Times New Roman', serif`;
+             ctx.fillStyle = "#334155"; ctx.font = `bold ${16*s}px 'Times New Roman', serif`;
              ctx.textAlign = "center"; ctx.fillText("불안정 상태 (홀전자가 남아있음)", cx, cy + 120*s);
              draw3DAtom(cx, cy, ATOMS[state.center].r*s, ATOMS[state.center].c3d, ATOMS[state.center].t3d, state.center);
              return;
@@ -714,14 +715,14 @@
 
             ctx.beginPath();
             ctx.arc(cx, cy, 60*s, start, end);
-            ctx.strokeStyle = "#FFFF00"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = "#4f46e5"; ctx.lineWidth = 2; ctx.stroke();
 
             let mid = (start + end) / 2;
             let tx = cx + Math.cos(mid)*110*s;
             let ty = cy + Math.sin(mid)*110*s;
             
             ctx.font = `bold ${16*s}px 'Times New Roman', serif`; ctx.textAlign = "center"; ctx.textBaseline="middle";
-            ctx.fillStyle = "#FFFF00";
+            ctx.fillStyle = "#4f46e5";
             ctx.fillText(state.angle, tx, ty);
         }
     }
