@@ -12,7 +12,9 @@
             touch-action: none;
             background-color: #f8fafc;
             color: #334155;
+            /* Mobile Viewport Fix: Use dvh for better mobile support */
             height: 100vh;
+            height: 100dvh; 
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -132,7 +134,8 @@
         </footer>
     </div>
 
-    <div id="lab-container" class="hidden-screen min-h-screen flex flex-col p-4 md:p-6 fade-in">
+    <!-- Mobile Layout Fix: Changed min-h-screen to h-full for proper Flex fit within 100dvh body -->
+    <div id="lab-container" class="hidden-screen h-full flex flex-col p-4 md:p-6 fade-in">
         
         <header class="flex justify-between items-center mb-4 px-1 flex-shrink-0">
             <div class="flex items-center gap-4">
@@ -150,9 +153,13 @@
             </div>
         </header>
 
+        <!-- Main Content Area: Responsive Flex -->
+        <!-- Mobile: Col layout, Canvas 60%, Sidebar rest -->
+        <!-- Desktop: Row layout, Sidebar fixed width -->
         <div class="flex flex-col lg:flex-row gap-4 flex-1 h-full overflow-hidden">
             
-            <div class="flex-1 canvas-wrap" id="canvas-wrapper">
+            <!-- Canvas: Fixed 60% height on mobile, Flex-1 on desktop -->
+            <div class="h-[60%] lg:h-auto w-full lg:flex-1 canvas-wrap shrink-0" id="canvas-wrapper">
                 <canvas id="simCanvas" class="block w-full h-full"></canvas>
                 
                 <div id="toast-msg" class="hidden absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-5 py-3 rounded-full shadow-xl text-xs font-bold z-20 toast-box backdrop-blur-sm">
@@ -210,7 +217,8 @@
                 </div>
             </div>
 
-            <div class="lg:w-80 flex flex-col gap-3 overflow-y-auto pb-5 flex-shrink-0 scrollbar-hide">
+            <!-- Sidebar: Takes remaining space (Flex-1) on mobile, Fixed width on Desktop -->
+            <div class="flex-1 lg:flex-none lg:w-80 flex flex-col gap-3 overflow-y-auto pb-5 min-h-0 scrollbar-hide">
                 
                 <div class="panel p-4">
                     <h2 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
