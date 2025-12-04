@@ -55,12 +55,18 @@
         }
 
         .source-item { 
-            cursor: grab; user-select: none; transition: transform 0.2s; 
+            cursor: pointer; user-select: none; transition: all 0.2s; 
             background: #f8fafc;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            padding: 8px; border-radius: 12px; border: 1px solid #e2e8f0;
+            padding: 8px; border-radius: 12px; border: 2px solid #e2e8f0;
         }
-        .source-item:active { cursor: grabbing; transform: scale(1.05); }
+        .source-item:active { transform: scale(0.95); }
+        /* Selected State for Tap-to-Bond */
+        .source-item.selected {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
         
         .icon-canvas { display: block; margin-bottom: 4px; pointer-events: none; }
 
@@ -160,7 +166,7 @@
             
             <!-- Canvas: Fixed 60% height on mobile, Flex-1 on desktop -->
             <div class="h-[60%] lg:h-auto w-full lg:flex-1 canvas-wrap shrink-0" id="canvas-wrapper">
-                <canvas id="simCanvas" class="block w-full h-full"></canvas>
+                <canvas id="simCanvas" class="block w-full h-full cursor-crosshair touch-none"></canvas>
                 
                 <div id="toast-msg" class="hidden absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-5 py-3 rounded-full shadow-xl text-xs font-bold z-20 toast-box backdrop-blur-sm">
                     <span id="toast-text">알림</span>
@@ -240,38 +246,38 @@
                 <div class="panel p-4 flex-grow flex flex-col relative">
                     <h2 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
                         <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px]">2</span>
-                        결합 원자 (드래그)
+                        결합 원자 (터치/드래그)
                     </h2>
                     
                     <div class="grid grid-cols-2 gap-3 mb-4">
-                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'H')">
+                        <div class="source-item hover:shadow-md" id="src-H" onpointerdown="startDrag(event, 'H')">
                             <canvas id="icon-H" width="50" height="50" class="icon-canvas"></canvas>
                             <span class="text-xs font-bold text-slate-500">수소 (H)</span>
                         </div>
-                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'F')">
+                        <div class="source-item hover:shadow-md" id="src-F" onpointerdown="startDrag(event, 'F')">
                             <canvas id="icon-F" width="50" height="50" class="icon-canvas"></canvas>
                             <span class="text-xs font-bold text-green-600">플루오린 (F)</span>
                         </div>
-                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'Cl')">
+                        <div class="source-item hover:shadow-md" id="src-Cl" onpointerdown="startDrag(event, 'Cl')">
                             <canvas id="icon-Cl" width="50" height="50" class="icon-canvas"></canvas>
                             <span class="text-xs font-bold text-emerald-600">염소 (Cl)</span>
                         </div>
-                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'O')">
+                        <div class="source-item hover:shadow-md" id="src-O" onpointerdown="startDrag(event, 'O')">
                             <canvas id="icon-O" width="50" height="50" class="icon-canvas"></canvas>
                             <span class="text-xs font-bold text-red-600">산소 (O)</span>
                         </div>
-                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'S')">
+                        <div class="source-item hover:shadow-md" id="src-S" onpointerdown="startDrag(event, 'S')">
                             <canvas id="icon-S" width="50" height="50" class="icon-canvas"></canvas>
                             <span class="text-xs font-bold text-yellow-600">황 (S)</span>
                         </div>
-                        <div class="source-item hover:shadow-md" onpointerdown="startDrag(event, 'N')">
+                        <div class="source-item hover:shadow-md" id="src-N" onpointerdown="startDrag(event, 'N')">
                             <canvas id="icon-N" width="50" height="50" class="icon-canvas"></canvas>
                             <span class="text-xs font-bold text-blue-600">질소 (N)</span>
                         </div>
                     </div>
 
                     <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 text-[11px] text-indigo-700 leading-relaxed mt-auto">
-                        <b>가이드:</b> 중심 원자의 <span class="text-red-500 font-bold">홀전자(점 1개)</span> 위에 원자를 놓으세요. 그림의 전자 배치를 보고 결합 가능 횟수를 확인할 수 있습니다.
+                        <b>가이드:</b> 원자를 <b>터치</b>하여 선택 후 중앙의 점을 누르거나, <b>드래그</b>하여 배치하세요.
                     </div>
                     
                     <div id="blocker" class="hidden absolute inset-0 bg-white/70 backdrop-blur-[2px] z-10 rounded-xl flex items-center justify-center">
@@ -315,40 +321,52 @@
         mode: '2d',
         rotation: { x: 0.2, y: 0.2 },
         angle: null,
-        zoom: 1.0 // Added for zoom functionality
+        zoom: 1.0,
+        selectedSource: null // For Tap-to-Bond
     };
     
-    let drag = { item: null, active: false, x: 0, y: 0 };
+    let drag = { item: null, active: false, x: 0, y: 0, startX: 0, startY: 0, isTap: false };
     let rotate = { active: false, lastX: 0, lastY: 0 };
-    
-    // Joystick state
     let joystick = { active: false, startX: 0, startY: 0, dx: 0, dy: 0 };
 
-    const canvas = document.getElementById('simCanvas');
-    const ctx = canvas.getContext('2d');
-    const wrapper = document.getElementById('canvas-wrapper');
-    const pad = document.getElementById('rotation-pad');
+    // Declare DOM variables but initialize them in onload
+    let canvas, ctx, wrapper, pad;
 
     /* ================= INIT ================= */
     window.onload = function() {
+        // Initialize DOM references here to prevent null reference errors
+        canvas = document.getElementById('simCanvas');
+        ctx = canvas.getContext('2d');
+        wrapper = document.getElementById('canvas-wrapper');
+        pad = document.getElementById('rotation-pad');
+
+        // Add Event Listeners
+        window.addEventListener('resize', resize);
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        
+        if (canvas) {
+            canvas.addEventListener('pointerdown', onDown);
+            canvas.addEventListener('wheel', onWheel, { passive: false });
+        }
+        if (pad) {
+            pad.addEventListener('pointerdown', onPadDown);
+        }
+
         renderIcons();
         resize();
         updateUI();
     };
-    window.addEventListener('resize', resize);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointerdown', onDown);
-    // Added wheel listener for zoom
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    
-    // Joystick Listeners
-    pad.addEventListener('pointerdown', onPadDown);
 
     function resize() {
+        // Safety check
+        if (!wrapper || !canvas || !ctx) return;
+
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = wrapper.clientWidth * dpr;
-        canvas.height = wrapper.clientHeight * dpr;
+        // Ensure wrapper has dimension
+        const rect = wrapper.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
     }
 
@@ -381,6 +399,25 @@
     }
 
     /* ================= LOGIC ================= */
+    // Select Source Atom (Tap Mode)
+    function selectSource(type) {
+        if (state.mode === '3d') return;
+        
+        // Toggle if same
+        if (state.selectedSource === type) {
+            state.selectedSource = null;
+        } else {
+            state.selectedSource = type;
+            showToast(`${type} 선택됨. 결합할 점을 누르세요.`);
+        }
+        
+        // Update visual
+        document.querySelectorAll('.source-item').forEach(el => el.classList.remove('selected'));
+        if (state.selectedSource) {
+            document.getElementById(`src-${state.selectedSource}`).classList.add('selected');
+        }
+    }
+
     function getInitialElectrons(type) {
         const v = ATOMS[type].valence;
         let s = ['empty','empty','empty','empty'];
@@ -402,6 +439,9 @@
         if(state.mode === '3d') return;
         state.center = type;
         state.slots = [null, null, null, null];
+        state.selectedSource = null;
+        document.querySelectorAll('.source-item').forEach(el => el.classList.remove('selected'));
+        
         document.querySelectorAll('.atom-btn').forEach(b => {
             b.classList.remove('active-center');
             b.classList.add('bg-white', 'text-slate-700');
@@ -540,25 +580,24 @@
 
     /* ================= RENDER & ANIM ================= */
     function animate() {
+        if (!canvas || !ctx || !wrapper) return;
+
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0,0,canvas.width,canvas.height);
         
-        const w = wrapper.clientWidth, h = wrapper.clientHeight;
+        const rect = wrapper.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        const s = dpr * 0.85; 
-        const cx = (w/2) * dpr;
-        const cy = (h/2) * dpr;
+        const cx = (rect.width/2) * dpr;
+        const cy = (rect.height/2) * dpr;
+        const s = dpr * (state.mode === '3d' ? 0.7 : 0.85); // Adjust scale
 
         if(state.mode === '2d') {
             draw2D(cx, cy, s);
         } else {
-            // Apply zoom in 3D
             draw3D(cx, cy, s * state.zoom);
         }
         
-        // Update rotation if joystick active
         if (joystick.active) {
-            // Map joystick dx/dy to rotation
             state.rotation.y += joystick.dx * 0.05;
             state.rotation.x += joystick.dy * 0.05;
         }
@@ -577,6 +616,28 @@
         const isStable = (radicals===0 && state.slots.some(x=>x));
 
         drawAtom2D(cx, cy, cInfo.r*s, cInfo.color, isStable?"#22c55e":'#94a3b8', isStable, state.center);
+
+        // Highlight selected slot target if atom is selected
+        if (state.selectedSource && !isStable) {
+            for(let i=0; i<4; i++) {
+                if(!state.slots[i] && baseE[i] === 'single') {
+                    const ang = angles[i];
+                    const ex = cx + Math.cos(ang)*(cInfo.r+35)*s;
+                    const ey = cy + Math.sin(ang)*(cInfo.r+35)*s;
+                    
+                    // Pulse animation for guide
+                    const pulse = 1 + Math.sin(Date.now() / 200) * 0.1;
+                    
+                    ctx.beginPath();
+                    ctx.arc(ex, ey, 12*s * pulse, 0, Math.PI*2);
+                    ctx.fillStyle = "rgba(79, 70, 229, 0.4)";
+                    ctx.fill();
+                    ctx.strokeStyle = "#4f46e5";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            }
+        }
 
         for(let i=0; i<4; i++) {
             const ang = angles[i];
@@ -842,30 +903,61 @@
     
     /* Event Handlers */
     function onWheel(e) {
-        // Zoom only in 3D mode
         if(state.mode !== '3d') return;
         e.preventDefault();
-        
-        // Simple zoom logic
         const delta = e.deltaY * -0.001; 
         state.zoom += delta;
-        // Clamp Zoom
         if(state.zoom < 0.3) state.zoom = 0.3;
         if(state.zoom > 3.0) state.zoom = 3.0;
     }
 
     function startDrag(e, type) {
         if(state.mode === '3d') return;
+        
+        // Prevent default on mouse to stop text selection, 
+        // but be careful on touch to allow click emulation if we want simple clicks.
+        // However, we handle tap logic manually in onUp, so preventDefault is safe/good.
         e.preventDefault();
+        
+        if (!canvas) return; 
         const rect = canvas.getBoundingClientRect();
-        drag.item = type; drag.active = true;
-        drag.x = e.clientX - rect.left; drag.y = e.clientY - rect.top;
+        
+        drag.active = true;
+        drag.item = type;
+        drag.isTap = true; // Assume tap initially
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // Record start pos to detect tap vs drag
+        drag.startX = clientX;
+        drag.startY = clientY;
+        
+        // Initial drag pos (visual ghost)
+        drag.x = clientX - rect.left; 
+        drag.y = clientY - rect.top;
     }
+
     function onMove(e) {
+        if (!canvas) return; 
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
-        if(drag.active) { drag.x = mx; drag.y = my; }
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        if(drag.active) { 
+            // Update drag pos
+            drag.x = clientX - rect.left; 
+            drag.y = clientY - rect.top; 
+            
+            // Check if moved enough to be a drag
+            const dist = Math.hypot(clientX - drag.startX, clientY - drag.startY);
+            if(dist > 5) { // 5px threshold
+                drag.isTap = false;
+            }
+        }
         if(rotate.active) {
+            const mx = clientX - rect.left; 
+            const my = clientY - rect.top;
             state.rotation.y += (mx - rotate.lastX) * 0.01;
             state.rotation.x += (my - rotate.lastY) * 0.01;
             rotate.lastX = mx; rotate.lastY = my;
@@ -873,20 +965,16 @@
         
         if (joystick.active) {
             e.preventDefault();
-            // Joystick logic relative to pad center
             const padRect = pad.getBoundingClientRect();
             const cx = padRect.left + padRect.width/2;
             const cy = padRect.top + padRect.height/2;
             
-            // Mouse absolute position
-            const px = e.clientX; 
-            const py = e.clientY;
+            const px = clientX; 
+            const py = clientY;
             
-            // Vector from center
             let vx = px - cx;
             let vy = py - cy;
             
-            // Limit length to radius ~25px
             const maxR = 25;
             const dist = Math.hypot(vx, vy);
             if (dist > maxR) {
@@ -894,21 +982,32 @@
                 vx *= f; vy *= f;
             }
             
-            // Move stick thumb
             const thumb = document.getElementById('stick-thumb');
             thumb.style.transform = `translate(${vx}px, ${vy}px)`;
             
-            // Normalize for rotation speed
-            joystick.dx = vx / maxR; // -1 to 1
+            joystick.dx = vx / maxR; 
             joystick.dy = vy / maxR;
         }
     }
+
     function onUp(e) {
         if(drag.active) {
-            const cx = wrapper.clientWidth/2, cy = wrapper.clientHeight/2;
-            if(Math.hypot(drag.x - cx, drag.y - cy) < 140) {
-                tryBond(drag.x - cx, drag.y - cy, drag.item);
+            if (!wrapper) return;
+            const rect = wrapper.getBoundingClientRect();
+            const cx = rect.width/2; 
+            const cy = rect.height/2;
+            
+            // If it was a drag (moved significantly)
+            if(!drag.isTap) {
+                if(Math.hypot(drag.x - cx, drag.y - cy) < 140) {
+                    tryBond(drag.x - cx, drag.y - cy, drag.item);
+                }
+            } 
+            // If it was a tap (didn't move much)
+            else {
+                selectSource(drag.item);
             }
+            
             drag.active = false; drag.item = null;
         }
         rotate.active = false;
@@ -920,34 +1019,62 @@
             pad.style.cursor = 'grab';
         }
         
-        canvas.style.cursor = state.mode === '3d' ? 'grab' : 'default';
+        if (canvas) canvas.style.cursor = state.mode === '3d' ? 'grab' : 'default';
     }
     
     function onPadDown(e) {
         e.preventDefault();
-        e.stopPropagation(); // prevent canvas click
+        e.stopPropagation(); 
         joystick.active = true;
         pad.style.cursor = 'grabbing';
-        // Trigger initial move logic immediately
-        const rect = canvas.getBoundingClientRect(); // Dummy call, just need onMove to fire relative to window
-        // Actually onMove uses e.clientX which is global, so it's fine.
     }
     
     function onDown(e) {
+        // Handle Tap-to-Bond logic on Canvas (for when an atom is selected)
+        if (state.mode === '2d' && state.selectedSource) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const mx = clientX - rect.left;
+            const my = clientY - rect.top;
+            
+            const dpr = window.devicePixelRatio || 1;
+            // Need to reverse scale to check hit
+            const cx = (rect.width/2);
+            const cy = (rect.height/2);
+            const dx = mx - cx;
+            const dy = my - cy;
+
+            // Simple distance check if tap is near center (approximate slots)
+            if(Math.hypot(dx, dy) < 140) {
+                 tryBond(dx * dpr, dy * dpr, state.selectedSource);
+                 return; // Handled tap
+            }
+        }
+
         if(state.mode === '3d') {
             rotate.active = true; 
             const rect = canvas.getBoundingClientRect();
-            rotate.lastX = e.clientX - rect.left; rotate.lastY = e.clientY - rect.top;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            rotate.lastX = clientX - rect.left; 
+            rotate.lastY = clientY - rect.top;
             canvas.style.cursor = 'grabbing';
         } else {
+            // Remove bond logic
             const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-            const cx = wrapper.clientWidth/2, cy = wrapper.clientHeight/2;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const mx = clientX - rect.left;
+            const my = clientY - rect.top;
+            
+            const cx = rect.width/2; 
+            const cy = rect.height/2;
             const angles = [-Math.PI/2, 0, Math.PI/2, Math.PI];
             for(let i=0; i<4; i++) {
                 if(state.slots[i] && state.slots[i].main) {
-                    const bx = cx + Math.cos(angles[i]) * 100;
-                    const by = cy + Math.sin(angles[i]) * 100;
+                    const bx = cx + Math.cos(angles[i]) * 100 * 0.85; // rough scale
+                    const by = cy + Math.sin(angles[i]) * 100 * 0.85;
                     if(Math.hypot(mx-bx, my-by) < 30) { removeBond(i); break; }
                 }
             }
@@ -955,14 +1082,16 @@
     }
     function setMode(m) {
         state.mode = m;
-        document.getElementById('btn-2d').className = m==='2d' ? "px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all" : "px-4 py-2 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all";
-        document.getElementById('btn-3d').className = m==='3d' ? "px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all" : "px-4 py-2 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all";
+        // Button styles
+        const activeClass = "px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all whitespace-nowrap";
+        const inactiveClass = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all whitespace-nowrap";
         
-        // Toggle background mode class
+        document.getElementById('btn-2d').className = m==='2d' ? activeClass : inactiveClass;
+        document.getElementById('btn-3d').className = m==='3d' ? activeClass : inactiveClass;
+        
         document.getElementById('canvas-wrapper').classList.toggle('mode-3d', m==='3d');
-        
         document.getElementById('blocker').classList.toggle('hidden', m==='2d');
-        document.getElementById('rotation-controls').classList.toggle('hidden', m==='2d'); // Toggle Controller
+        document.getElementById('rotation-controls').classList.toggle('hidden', m==='2d');
         
         const i2 = document.getElementById('info-content-2d');
         const i3 = document.getElementById('info-content-3d');
